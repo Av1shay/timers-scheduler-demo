@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/Av1shay/timers-scheduler-demo/log"
+	"github.com/Av1shay/timers-scheduler-demo/logx"
 	"github.com/Av1shay/timers-scheduler-demo/task"
 	"github.com/gorilla/mux"
 	"gopkg.in/dealancer/validate.v2"
@@ -21,7 +21,7 @@ func New(taskService *task.Service) *Server {
 }
 
 func (s *Server) MountHandlers(router *mux.Router) {
-	router.Use(requestIdMiddleware)
+	router.Use(traceIdMiddleware)
 	router.Use(logMiddleware)
 	router.HandleFunc("/timers", s.NewTimer).Methods(http.MethodPost)
 	router.HandleFunc("/timers/{id}", s.GetTimer).Methods(http.MethodGet)
@@ -34,7 +34,7 @@ func (s *Server) NewTimer(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var reqBody SetTimerReq
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		log.Error(ctx, "failed to parse request body:", err)
+		logx.Error(ctx, "failed to parse request body:", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -47,7 +47,7 @@ func (s *Server) NewTimer(w http.ResponseWriter, r *http.Request) {
 	dueDate := n.Add(time.Hour*time.Duration(reqBody.Hours) + time.Minute*time.Duration(reqBody.Minutes) + time.Second*time.Duration(reqBody.Seconds))
 	createdTask, err := s.taskService.SaveTask(ctx, dueDate, reqBody.URL)
 	if err != nil {
-		log.Error(ctx, "failed to save task:", err)
+		logx.Error(ctx, "failed to save task:", err)
 		msg, code := parseError(err)
 		http.Error(w, msg, code)
 		return
@@ -71,7 +71,7 @@ func (s *Server) GetTimer(w http.ResponseWriter, r *http.Request) {
 
 	t, err := s.taskService.GetTask(ctx, id)
 	if err != nil {
-		log.Error(ctx, "failed to get task:", err)
+		logx.Error(ctx, "failed to get task:", err)
 		msg, code := parseError(err)
 		http.Error(w, msg, code)
 		return
@@ -92,7 +92,7 @@ func (s *Server) GetTimer(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Test(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	id := params["id"]
-	log.Info(r.Context(), "webhook called for task", id)
+	logx.Info(r.Context(), "webhook called for task", id)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -106,9 +106,9 @@ func parseError(err error) (string, int) {
 	return msg, code
 }
 
-func requestIdMiddleware(next http.Handler) http.Handler {
+func traceIdMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := log.ContextWithRequestID(r.Context())
+		ctx := logx.ContextWithTraceID(r.Context())
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)
 	})
@@ -116,7 +116,7 @@ func requestIdMiddleware(next http.Handler) http.Handler {
 
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Info(r.Context(), r.Method, r.RequestURI)
+		logx.Info(r.Context(), r.Method, r.RequestURI)
 		next.ServeHTTP(w, r)
 	})
 }

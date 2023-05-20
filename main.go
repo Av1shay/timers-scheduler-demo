@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/Av1shay/timers-scheduler-demo/ent"
-	logx "github.com/Av1shay/timers-scheduler-demo/log"
+	"github.com/Av1shay/timers-scheduler-demo/logx"
 	"github.com/Av1shay/timers-scheduler-demo/rabbitmq_queue"
 	"github.com/Av1shay/timers-scheduler-demo/server"
 	"github.com/Av1shay/timers-scheduler-demo/task"
@@ -77,48 +77,32 @@ func main() {
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	taskService := task.NewService(dbClient, queue, httpClient)
 
-	r := mux.NewRouter()
-
 	srv := server.New(taskService)
 	must(err, "init server")
 
-	srv.MountHandlers(r)
+	router := mux.NewRouter()
+	srv.MountHandlers(router)
 
 	// if we have old tasks that didn't run, try to run them now
 	if err := taskService.ProcessOldTasks(ctx); err != nil {
-		log.Println(err)
+		log.Println("failed to process old tasks", err)
 	}
 
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(1).Seconds().Do(func() {
-		if err := taskService.ProcessCurrentTasks(context.Background()); err != nil {
-			log.Println(err)
+		ctx := logx.ContextWithTraceID(context.Background())
+		if err := taskService.ProcessCurrentTasks(ctx); err != nil {
+			logx.Error(ctx, err)
 		}
 	})
-
-	// start the cron
 	s.StartAsync()
 
-	// This listener can sit in different place or service, so this is not part of the Queue interface
-	// TODO configure to queue to have retries
-	err = queue.Consume(func(d *amqp.Delivery) {
-		defer d.Ack(false) // ack the message as soon as this function exist normally
-
-		var t task.Task
-		if err := json.Unmarshal(d.Body, &t); err != nil {
-			logx.Error(ctx, "failed to parse task from queue:", err)
-			return
-		}
-		logx.Info(ctx, "emitting task", t)
-		if err := taskService.EmitTask(ctx, &t); err != nil {
-			logx.Error(ctx, "failed to emit task:", err)
-		}
-	})
+	err = startConsumeMessages(queue, taskService)
 	must(err, "failed to listen for queue")
 
 	httpServer := &http.Server{
 		Addr:    ":" + port,
-		Handler: r,
+		Handler: router,
 	}
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -140,6 +124,26 @@ func main() {
 	}
 
 	log.Println("server exited")
+}
+
+// startConsumeMessages start consume messages from rabbitMQ, emit every message to taskService.
+// 	This listener can sit in different place or service, so this is not part of the Queue interface
+// 	TODO configure to queue to have retries
+func startConsumeMessages(queue *rabbitmq_queue.Client, taskService *task.Service) error {
+	return queue.Consume(func(d *amqp.Delivery) {
+		defer d.Ack(false) // ack the message as soon as this function exist normally
+
+		ctx := logx.ContextWithTraceID(context.Background())
+		var t task.Task
+		if err := json.Unmarshal(d.Body, &t); err != nil {
+			logx.Error(ctx, "failed to parse task from queue:", err)
+			return
+		}
+		logx.Info(ctx, "emitting task", t)
+		if err := taskService.EmitTask(ctx, &t); err != nil {
+			logx.Error(ctx, "failed to emit task:", err)
+		}
+	})
 }
 
 func must(err error, msg string) {

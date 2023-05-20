@@ -27,8 +27,6 @@ var (
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 
-	r := mux.NewRouter()
-
 	var err error
 	dbClient, err = ent.Open("mysql", "user:password@tcp(localhost:3320)/task_scheduler?parseTime=true")
 	if err != nil {
@@ -41,9 +39,11 @@ func TestMain(m *testing.M) {
 	}
 	taskService := task.NewService(dbClient, nil, nil)
 	srv := New(taskService)
-	srv.MountHandlers(r)
 
-	ts = httptest.NewServer(r)
+	router := mux.NewRouter()
+	srv.MountHandlers(router)
+
+	ts = httptest.NewServer(router)
 	defer ts.Close()
 
 	exitVal := m.Run()

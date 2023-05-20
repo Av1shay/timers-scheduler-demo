@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/Av1shay/timers-scheduler-demo/ent"
 	"github.com/Av1shay/timers-scheduler-demo/ent/task"
-	"github.com/Av1shay/timers-scheduler-demo/log"
+	"github.com/Av1shay/timers-scheduler-demo/logx"
 	"net/http"
 	"strings"
 	"sync"
@@ -82,10 +82,10 @@ func (s *Service) processTasks(ctx context.Context, tasks []*ent.Task) error {
 			defer wg.Done()
 
 			for t := range tasksChan {
-				log.Info(ctx, "processing task", t.ID)
+				logx.Info(ctx, "processing task", t.ID)
 
 				if err := s.processTask(ctx, t); err != nil {
-					log.Errorf(ctx, "failed to process task %d: %v\n", t.ID, err)
+					logx.Errorf(ctx, "failed to process task %d: %v\n", t.ID, err)
 				}
 			}
 		}()
@@ -141,7 +141,7 @@ func (s *Service) EmitTask(ctx context.Context, t *Task) error {
 	err := s.emitTask(ctx, t)
 	if updateErr := s.updateTaskAfterRun(ctx, t, err); updateErr != nil {
 		// we don't return error here because this is not a retriable error, we don't want to emit the task twice
-		log.Errorf(ctx, "failed up update task %d after emitting error: %s\n", t.ID, updateErr)
+		logx.Errorf(ctx, "failed up update task %d after emitting error: %s\n", t.ID, updateErr)
 	}
 	return err
 }

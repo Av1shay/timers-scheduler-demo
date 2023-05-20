@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/Av1shay/timers-scheduler-demo/ent"
 	"github.com/Av1shay/timers-scheduler-demo/ent/task"
-	"github.com/Av1shay/timers-scheduler-demo/log"
+	"github.com/Av1shay/timers-scheduler-demo/logx"
 	_ "github.com/go-sql-driver/mysql"
 	"testing"
 	"time"
@@ -149,9 +149,9 @@ func TestService_ProcessOldTasks(t *testing.T) {
 
 func clearDb(ctx context.Context, dbClient *ent.Client) {
 	if _, err := dbClient.TaskHistory.Delete().Exec(ctx); err != nil {
-		log.Error(ctx, "failed to delete TaskHistory data")
+		logx.Error(ctx, "failed to delete TaskHistory data")
 	}
 	if _, err := dbClient.Task.Delete().Exec(ctx); err != nil {
-		log.Error(ctx, "failed to delete Task data")
+		logx.Error(ctx, "failed to delete Task data")
 	}
 }

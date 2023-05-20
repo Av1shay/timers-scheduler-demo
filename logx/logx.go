@@ -1,4 +1,4 @@
-package log
+package logx
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 type ctxKey string
 
-const ctxKeyRequestID ctxKey = "request_id"
+const ctxKeyTraceID ctxKey = "trace_id"
 
 type Severity string
 
@@ -28,8 +28,7 @@ func Errorf(ctx context.Context, format string, v ...any) {
 }
 
 func Logf(ctx context.Context, severity Severity, format string, v ...any) {
-	reqID := GetRequestID(ctx)
-	prefix := fmt.Sprintf("[%s] [Request ID: %s] ", strings.ToUpper(string(severity)), reqID)
+	prefix := fmt.Sprintf("[%s] [TraceID: %s] ", strings.ToUpper(string(severity)), TraceIdFromContext(ctx))
 	msg := fmt.Sprintf(format, v...)
 	log.Println(prefix, msg)
 }
@@ -43,8 +42,7 @@ func Error(ctx context.Context, a ...any) {
 }
 
 func Log(ctx context.Context, severity Severity, a ...any) {
-	reqID := GetRequestID(ctx)
-	prefix := fmt.Sprintf("[%s] [RequestID: %s] ", strings.ToUpper(string(severity)), reqID)
+	prefix := fmt.Sprintf("[%s] [TraceID: %s] ", strings.ToUpper(string(severity)), TraceIdFromContext(ctx))
 	args := make([]any, 0, len(a)+1)
 	args = append(args, prefix)
 	for _, arg := range a {
@@ -53,14 +51,14 @@ func Log(ctx context.Context, severity Severity, a ...any) {
 	log.Println(args...)
 }
 
-func ContextWithRequestID(ctx context.Context) context.Context {
-	requestID := uuid.NewString()
-	return context.WithValue(ctx, ctxKeyRequestID, requestID)
+func ContextWithTraceID(ctx context.Context) context.Context {
+	traceID := uuid.NewString()
+	return context.WithValue(ctx, ctxKeyTraceID, traceID)
 }
 
-func GetRequestID(ctx context.Context) string {
-	if requestID, ok := ctx.Value(ctxKeyRequestID).(string); ok {
-		return requestID
+func TraceIdFromContext(ctx context.Context) string {
+	if traceID, ok := ctx.Value(ctxKeyTraceID).(string); ok {
+		return traceID
 	}
 	return uuid.NewString()
 }
